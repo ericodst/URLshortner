@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <link rel="shortcut icon" href="">
+  <title>{{.title}}</title>
+</head>
+<body>
+  {{ if .success }}
+    <div class="alert alert-success" role="alert">
+        {{ .success }}
+    </div>
+  {{ end }}
+  {{if .error}}
+    <div class="alert alert-danger" role="alert">
+        {{ .error }}
+    </div>
+  {{end}}
+  
+  <h1>{{.title}}</h1>
+  <!-- <form action="/new" method="POST">
+    <label for="originURL">Your URL</label>
+    <input type="url" name="iuputURL" id="originURL">
+  </form> -->
+  <div>
+    <h2>{{.Content}}</h2>
+  </div>
+  
+</body>
+</html>

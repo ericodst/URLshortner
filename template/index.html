@@ -8,9 +8,39 @@
   <h1>{{.title}}</h1>
   <form action="/new" method="POST">
     <label for="originURL">Your URL</label>
-    <input type="url" name="inputURL" id="originURL" value="">
-    <button type="submit" class="btnSubmit">send</button>
+    <input type="url" name="inputURL" id="originURL" placeholder="your url" value="" required> <br>
+    <!-- <button type="submit" class="btnSubmit">send</button><br> -->
+    <input type="checkbox" name="time-setting" id="time-setting">
+    <label for="time-setting">set lifetime of shortURL (default is 7 days if the link not used)</label> <br>
+    <input type="number" name="lifeTime-days" id="lifeTime-days" min="0" max="30" placeholder="7" data-show-if="time-setting" disabled> days
+    <input type="number" name="lifeTime-hours" id="lifeTime-hours" min="0" max="23" placeholder="0" data-show-if="time-setting" disabled> hours <br>
+    <script>
+      var checkbox=document.getElementById('time-setting');
+      var day = document.getElementById("lifeTime-days");
+      var hour = document.getElementById("lifeTime-hours");
+      checkbox.addEventListener('click', function handleClick() {
+        if (checkbox.checked) {
+          // box.style.display = 'block';
+          day.disabled = false;
+          hour.disabled = false;
+        } else {
+          // box.style.display = 'none';
+          day.disabled = true;
+          hour.disabled = true;
+        }
+      })
+      day.addEventListener('change', function handledays() {
+        if(day.value==0){
+          hour.setAttribute("min", "1")
+        } else {
+          hour.setAttribute("min", "0")
+        }
+      })
+      
+    </script>
+    <button type="submit" class="btnSubmit">send</button><br>
   </form>
+
   {{ if .success }}
     <div class="alert alert-success" role="alert">
         {{ .success }}

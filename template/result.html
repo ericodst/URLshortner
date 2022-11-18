@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <!-- <link rel="shortcut icon" href=""> -->
+  <title>{{.title}}</title>
+  <link rel="stylesheet" href="../static/index.css">
+  <script>
+    function copy() {
+      // Get the text field
+      let copyText = document.getElementById("shortUrl");
+
+      // Select the text field
+      copyText.select();
+
+      // Copy the text inside the text field
+      navigator.clipboard.writeText(copyText.value);
+
+      // Alert the copied text
+      alert("Copied the text: " + copyText.value);
+    } 
+  </script>
+</head>
+<body>
+  <div style="margin-bottom: 3em;">
+    <h1>{{.title}}</h1>
+    <form action="/new" method="POST">
+      <label for="originURL">Your URL</label>
+      <input type="url" name="inputURL" class="url-box" placeholder="your url" value="" required> <br>
+      <button type="submit" class="btnSubmit">send</button><br>
+    </form>
+  </div>
+
+  <div style="text-align:center; margin: auto; width: 40em;">
+    <div id="short-box">
+      <label> Short URL </label> <input type="text" value={{.short}} class="url-box"> <button onclick="copy()"><img src="../static/copy-symbol.png" alt="copy" width="15em" hight="15em">Copy</button>
+      
+    </div>
+    <div>
+      Original URL: {{.origin}}
+    </div>
+  </div>
+
+</body>
+</html>

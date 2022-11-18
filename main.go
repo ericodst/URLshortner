@@ -10,35 +10,59 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/x/bsonx"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/mongo/readpref"
 	"math/rand"
 	"time"
 	"log"
-	"strconv"
+	"github.com/go-redis/redis/v9"
+	// "golang.design/x/clipboard"
 )
+
+func NewClient(ctx context.Context) *redis.Client {
+	client := redis.NewClient(&redis.Options{
+			Addr:     "localhost:6379",
+			Password: "", // no password set
+			DB:       0,  // use default DB
+	})
+
+	pong, err := client.Ping(ctx).Result()
+	if err != nil {
+			panic(err)
+	}
+
+	fmt.Println(pong)
+	return client
+}
 
 // main
 func main() {
 	// create gin server
   server := gin.Default()
 	server.SetTrustedProxies([]string{"127.0.0.1"})
+
+	ctx := context.Background()
+
 	// create mongodb server
-	client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI("mongodb://localhost:27017"))
+	mgdb, err := mongo.Connect(context.TODO(), options.Client().ApplyURI("mongodb://127.0.0.1:27017"))
 	if err != nil {
 		panic(err)
 	}
+
+	rds := NewClient(ctx)
+
 	// ping mongodb to check connection
-	if err := client.Ping(context.TODO(), readpref.Primary()); err != nil {
+	if err := mgdb.Ping(context.TODO(), readpref.Primary()); err != nil {
 		panic(err)
 	}
 	// Declare Context type object for managing multiple API requests
 	// ctx, _ := context.WithTimeout(context.Background(), 15*time.Second)
 
-	server.Use(dbMiddleware(client))
+	server.Use(mgMiddleware(mgdb))
+	server.Use(rdsMiddleware(rds))
 
 	server.LoadHTMLGlob("template/*")
+	server.Static("/static", "./static")
 	server.GET("/", indexHandler)
 	server.POST("/new", getShortURL)
 	server.GET("/:shortUrl", redirectHandler)
@@ -53,204 +77,84 @@ func indexHandler(c *gin.Context) {
 }
 
 func getShortURL(c *gin.Context) {
+	ctx := context.TODO()
 	url, exist := c.GetPostForm("inputURL")
 	if(!exist) {
-		c.HTML(http.StatusOK, "test.html", gin.H{
-			"title": "Error",
-			"Content": "none",
-			"error": "fail",
+		c.HTML(http.StatusOK, "index.html", gin.H{
+			"title": "URL Shortner",
+			// "Content": "none",
+			// "error": "fail",
 		})
 	} else {
-		dbClient := c.Request.Context().Value("client").(*mongo.Client)
-		c.HTML(http.StatusOK, "test.html", gin.H{
+		mgdb := c.Request.Context().Value("mgdb").(*mongo.Client)
+		rds := c.Request.Context().Value("rds").(*redis.Client)
+		newKey := generateURL(url)
+		// write to mongodb
+		record := URL{
+					Keys: newKey,
+					Origin: url,
+		}
+		collection := mgdb.Database("shortner").Collection("urlMapping")
+		collection.InsertOne(ctx, record)
+
+		//write to redis & set expire time to 1 week
+		err := rds.Set(ctx, newKey, url, 1*time.Minute).Err()
+		if err != nil {
+			log.Println("Redis.Set failed", err)
+		}
+
+		// dbClient := c.Request.Context().Value("client").(*mongo.Client)
+		host := "127.0.0.1:8080/"
+		c.HTML(http.StatusOK, "result.html", gin.H{
 			"title": "URL Shortner",
-			"Content": checkExist(c, url, dbClient),
-			"success": url,
+			"short": host + newKey,
+			"origin": url,
 		})
 	}
 }
 
 func redirectHandler(c *gin.Context) {
-	short := c.Param("shortUrl")
-	client := c.Request.Context().Value("client").(*mongo.Client)
-	collection := client.Database("shortner").Collection("urlMapping")
-	var result bson.M
-	lookFor := bson.D{{"short", short}}
-	err := collection.FindOne(context.TODO(), lookFor).Decode(&result)
-	if err != nil {
-		if err == mongo.ErrNoDocuments {
-			// no match
-			c.HTML(http.StatusOK, "index.html", gin.H{
-				"title": "URL Shortner",
-				"error": "This short url is not exist",
-			})
-		} 	
-	} else {
-			// match
-			originURL := result["origin"].(string)
-			c.Redirect(http.StatusMovedPermanently, originURL)
-	}
-}
-
-func checkExist(c *gin.Context, url string, client *mongo.Client) string {
+	rds := c.Request.Context().Value("rds").(*redis.Client)
+	key := c.Param("shortUrl")
+	notInReids := false
+	// check redis
 	ctx := context.TODO()
-	// ctx := context.Background()
-	shortURL := ""
-	setTime, exist := c.GetPostForm("time-setting")
-	days := 7
-	hours := 0
-	if(setTime == "on" && exist) { 
-		day, _ := c.GetPostForm("lifeTime-days")
-		hour, _ := c.GetPostForm("lifeTime-hours")
-		days, _ = strconv.Atoi(day)
-		hours, _ = strconv.Atoi(hour)
+	origin, err := rds.Get(ctx, key).Result()
+	if err == redis.Nil {
+			// fmt.Println("origin url does not exist")
+			notInReids = true
+	} else if err != nil {
+			fmt.Println("client.Get failed", err)
+	} else {
+			// fmt.Println("key2", val2)
+			c.Redirect(http.StatusMovedPermanently, origin)
 	}
 
-	collection := client.Database("shortner").Collection("urlMapping")
-
-	if setTime == "on" {
-		shortURL = generateURL(url)
-		item := URL{
-			Origin: url,
-			Short:	shortURL,
-			Custom: "true",
-			CreateAt: time.Now().UTC(),
-			ExpireAt:	int32(3600 * (days * 24 + hours)),
-		}
-		expire := mongo.IndexModel{
-			Keys: bson.M{"createdAt": bsonx.Int32(int32(time.Now().Unix()))},
-			Options: options.Index().SetExpireAfterSeconds(int32(3600 * (days * 24 + hours))),
-			// Options: options.Index().SetExpireAfterSeconds(60),
-		}
-		_, err := collection.Indexes().CreateOne(ctx, expire)
-		if err != nil {
-				log.Fatal(err)
-		} 
-		collection.InsertOne(ctx, item)
-	} else {
+	if notInReids == true {
+		mgdb := c.Request.Context().Value("mgdb").(*mongo.Client)
+		collection := mgdb.Database("shortner").Collection("urlMapping")
 		var result bson.M
-		lookFor := bson.D{{"origin", url}, {"custom", "false"}}
-		// lookForCustom := bson.D{{"custom", "false"}}
-		// opts := options.FindOne().SetProjection(lookForCustom)
-
+		lookFor := bson.D{{"keys", key}}
 		err := collection.FindOne(context.TODO(), lookFor).Decode(&result)
 		if err != nil {
 			if err == mongo.ErrNoDocuments {
 				// no match
-				shortURL = generateURL(url)
-				item := URL{
-					Origin: url,
-					Short:	shortURL,
-					Custom: "false",
-					CreateAt: time.Now().UTC(),
-					ExpireAt:	604800,
-				}
-				expire := mongo.IndexModel{
-					Keys: bson.M{"createdAt": bsonx.Int32(int32(time.Now().Unix()))},
-					Options: options.Index().SetExpireAfterSeconds(604800), // 7 days
-					// Options: options.Index().SetExpireAfterSeconds(60),
-				}
-				_, err := collection.Indexes().CreateOne(ctx, expire)
-				if err != nil {
-						log.Fatal(err)
-				} 
-				collection.InsertOne(ctx, item)
-			} else {
-				fmt.Println("error")
-				log.Fatal(err)
-				// match
-				// fmt.Println(shortURL)
-				// shortURL = result["short"].(string)
-				// fmt.Println(shortURL)
-				// cmd := bson.D{{"collmod", collection}, {"key", {"createAt",result["short"].(string)}}}
-			}
+				c.HTML(http.StatusOK, "index.html", gin.H{
+					"title": "URL Shortner",
+				})
+			} 	
 		} else {
-			// match
-			fmt.Println(result)
-			shortURL = result["short"].(string)
-			// fmt.Println("error")
-			// log.Fatal(err)
+				// match
+				originURL := result["origin"].(string)
+				c.Redirect(http.StatusMovedPermanently, originURL)
+
+				//write to redis & set expire time to 1 week
+				err := rds.Set(ctx, key, originURL, 1*time.Minute).Err()
+				if err != nil {
+					log.Println("Redis.Set failed", err)
+				}
 		}
 	}
-
-	// var result bson.M
-	// lookFor := bson.D{{"origin", url}}
-	// err := collection.FindOne(context.TODO(), lookFor).Decode(&result)
-	// if err != nil {
-	// 	if err == mongo.ErrNoDocuments {
-	// 		shortURL = generateURL(url)
-	// 		// no match
-	// 		if(setTime == "on") {
-	// 			item := URL{
-	// 				Origin: url,
-	// 				Short:	shortURL,
-	// 				Custom: "true",
-	// 				CreateAt: time.Now().UTC(),
-	// 				ExpireAt:	60,
-	// 			}
-	// 			expire := mongo.IndexModel{
-	// 				Keys: bson.M{"createdAt": bsonx.Int32(int32(time.Now().Unix()))},
-	// 				Options: options.Index().SetExpireAfterSeconds(3600 * (days * 24 + hours)),
-	// 				// Options: options.Index().SetExpireAfterSeconds(60),
-	// 			}
-	// 			cr, err := collection.Indexes().CreateOne(ctx, expire)
-	// 			if err != nil {
-	// 					log.Fatal(err)
-	// 			} 
-	// 			collection.InsertOne(ctx, item)
-	// 		} else {
-	// 			item := URL{
-	// 				Origin: url,
-	// 				Short:	shortURL,
-	// 				Custom: "false",
-	// 				CreateAt: time.Now().UTC(),
-	// 				ExpireAt:	60,
-	// 			}
-	// 			expire := mongo.IndexModel{
-	// 				Keys: bson.M{"createdAt": bsonx.Int32(int32(time.Now().Unix()))},
-	// 				// Keys: bson.M{"createdAt": time.Now()},
-	// 				Options: options.Index().SetExpireAfterSeconds(604800),  // 7 days
-	// 				// Options: options.Index().SetExpireAfterSeconds(60),
-	// 			}
-	// 			_, err := collection.Indexes().CreateOne(ctx, expire)
-	// 			if err != nil {
-	// 				log.Fatal(err)
-	// 			}
-	// 			// doc := bson.D{{"origin", url}, {"short", shortURL}, {"custom", "false"}}
-	// 			collection.InsertOne(ctx, item)
-	// 		}
-	// 		// shortURL = generateURL(url)
-	// 		// doc := bson.D{{"origin", url}, {"short", shortURL}, }
-	// 		// collection.InsertOne(context.TODO(), doc)
-	// 	} 	
-	// } else {
-	// 		// match
-	// 		if(setTime == "on") {
-	// 			item := URL{
-	// 				Origin: url,
-	// 				Short:	shortURL,
-	// 				Custom: "true",
-	// 				CreateAt: time.Now().UTC(),
-	// 				ExpireAt:	60,
-	// 			}
-	// 			expire := mongo.IndexModel{
-	// 				Keys: bson.M{"createdAt": bsonx.Int32(int32(time.Now().Unix()))},
-	// 				Options: options.Index().SetExpireAfterSeconds(3600 * (days * 24 + hours)),
-	// 				// Options: options.Index().SetExpireAfterSeconds(60),
-	// 			}
-	// 			cr, err := collection.Indexes().CreateOne(ctx, expire)
-	// 			if err != nil {
-	// 					log.Fatal(err)
-	// 			} 
-	// 			collection.InsertOne(ctx, item)
-	// 		} else {
-	// 			shortURL = result["short"].(string)
-	// 			// TO-DO: reset life time
-	// 		}
-	// 		// shortURL = result["short"].(string)
-	// }
-
-	return shortURL
 }
 
 func generateURL(url string) string {
@@ -261,10 +165,16 @@ func generateURL(url string) string {
 	return string(encoded[:8])
 }
 
-// dbMiddleware will add the db client to the context
-func dbMiddleware(cl *mongo.Client) gin.HandlerFunc {
+// Middleware will add the db client to the context
+func mgMiddleware(cl *mongo.Client) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		c.Request = c.Request.WithContext(context.WithValue(c.Request.Context(), "client", cl))
+		c.Request = c.Request.WithContext(context.WithValue(c.Request.Context(), "mgdb", cl))
+		c.Next()
+	}
+}
+func rdsMiddleware(cl *redis.Client) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Request = c.Request.WithContext(context.WithValue(c.Request.Context(), "rds", cl))
 		c.Next()
 	}
 }
@@ -283,9 +193,7 @@ func randomString() (string, string) {
 
 type URL struct {
 	ID				primitive.ObjectID	`bson:"_id,omitempty"`
+	Keys			string							`bson:"keys,omitempty"`
 	Origin		string							`bson:"origin,omitempty"`
-	Short			string							`bson:"short,omitempty"`
-	Custom 		string							`bson:"custom,omitempty"`
-	CreateAt  time.Time								`bson:"createdAt,omitempty"`
-	ExpireAt	int32								`json:"expireAt" bson:"expireAt"`
 }
+

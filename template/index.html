@@ -3,22 +3,24 @@
 <head>
   <!-- <link rel="shortcut icon" href=""> -->
   <title>{{.title}}</title>
-  <link rel="stylesheet" href="../static/index.css">
+  <link rel="stylesheet" href="../asset/css/index.css">
 </head>
 <body>
-  <h1>{{.title}}</h1>
-  <form action="/new" method="POST">
-    <label for="originURL">Paste Your URL</label>
-    <input type="url" name="inputURL" class="url-box" placeholder="your url" value="" required> <br>
+  <div id="main-container">
+    <h1>{{.title}}</h1>
+    <form action="/new" method="POST">
+      <label for="originURL">Paste Your URL</label>
+      <input type="url" name="inputURL" class="url-box" placeholder="your url" value="" required> <br>
 
-    <button type="submit" class="btnSubmit">send</button><br>
-  </form>
+      <button type="submit" class="btnSubmit">send</button><br>
+    </form>
 
-  {{if .error}}
-    <div class="alert alert-danger" role="alert">
-        {{ .error }}
-    </div>
-  {{end}}
+    {{if .error}}
+      <div class="alert alert-danger" role="alert">
+          {{ .error }}
+      </div>
+    {{end}}
+  </div>
   <!-- <p>{{.Content}}</p> -->
 </body>
 </html>

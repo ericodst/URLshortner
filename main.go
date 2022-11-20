@@ -16,7 +16,9 @@ import (
 	"time"
 	"log"
 	"github.com/go-redis/redis/v9"
-	// "golang.design/x/clipboard"
+	"github.com/line/line-bot-sdk-go/v7/linebot"
+	"net/url"
+	// "reflect"
 )
 
 func NewClient(ctx context.Context) *redis.Client {
@@ -55,19 +57,89 @@ func main() {
 	if err := mgdb.Ping(context.TODO(), readpref.Primary()); err != nil {
 		panic(err)
 	}
-	// Declare Context type object for managing multiple API requests
-	// ctx, _ := context.WithTimeout(context.Background(), 15*time.Second)
 
+	// line bot
+	bot := lineConnect()
+	
+
+	// server routes
 	server.Use(mgMiddleware(mgdb))
 	server.Use(rdsMiddleware(rds))
+	server.Use(lineMiddleware(bot))
 
-	server.LoadHTMLGlob("template/*")
-	server.Static("/static", "./static")
+	server.LoadHTMLGlob("template/*.html")
+	server.Static("/asset", "./asset")
 	server.GET("/", indexHandler)
 	server.POST("/new", getShortURL)
 	server.GET("/:shortUrl", redirectHandler)
+	// linebot 
+	server.POST("/", botHandler)
 
 	server.Run(":8080")
+}
+
+func lineConnect() *linebot.Client {
+	channelSecret := "a8d3a14eba7f192523d01ba07fa1a915"
+	channelToekn := "hGli3a7tvQWCSksDQih89axwa7sxbl0sMrnk3lhmJgr833rrq/DPzS1NCb1sxDyy16uQEhZjJvxWhVK2e5nkTzKsQYXCdZU1VfbMP7KGwOiNZrtdI4Gze1+JjqtFroMOMizEDFyyHUSBnBy04PJP8QdB04t89/1O/w1cDnyilFU="
+	lineClient := &http.Client{}
+	bot, err := linebot.New(channelSecret, channelToekn, linebot.WithHTTPClient(lineClient))
+	if err != nil {
+		log.Println(err)
+	}
+
+	return bot
+}
+
+// linebot handler
+func botHandler(c *gin.Context){
+	ctx := context.TODO()
+	bot := c.Request.Context().Value("linebot").(*linebot.Client)
+	events, err := bot.ParseRequest(c.Request)
+	if err != nil {
+		log.Println(err)
+	}
+
+	for _, event := range events {
+		if event.Type == linebot.EventTypeMessage {
+			switch message := event.Message.(type) {
+			// only handle text message
+			case *linebot.TextMessage:
+				// check whether the input url is valid
+				_, err := url.ParseRequestURI(message.Text)
+				// log.Println(event.Message)
+				if err != nil {
+					_, err := bot.ReplyMessage(event.ReplyToken, linebot.NewTextMessage("It's not a valid url")).Do()
+					if err != nil {
+						log.Println(err)
+					}
+				} else {
+					log.Println(event.Message)
+					mgdb := c.Request.Context().Value("mgdb").(*mongo.Client)
+					rds := c.Request.Context().Value("rds").(*redis.Client)
+					newKey := generateURL(message.Text)
+					// write to mongodb
+					record := URL{
+						Keys: newKey,
+						Origin: message.Text,
+					}
+					collection := mgdb.Database("shortner").Collection("urlMapping")
+					collection.InsertOne(ctx, record)
+
+					//write to redis & set expire time to 1 week
+					err := rds.Set(ctx, newKey, message.Text, 1*time.Minute).Err()
+					if err != nil {
+						log.Println("Redis.Set failed", err)
+					}
+					host := "127.0.0.1:8080/"
+					_, er := bot.ReplyMessage(event.ReplyToken, linebot.NewTextMessage(host+newKey)).Do()
+					// _, er := bot.ReplyMessage(event.ReplyToken, linebot.NewTextMessage(event.Message)).Do()
+					if er != nil {
+						log.Println(er)
+					}
+				}
+			}
+		}
+	}
 }
 
 func indexHandler(c *gin.Context) {
@@ -78,37 +150,36 @@ func indexHandler(c *gin.Context) {
 
 func getShortURL(c *gin.Context) {
 	ctx := context.TODO()
-	url, exist := c.GetPostForm("inputURL")
+	inputUrl, exist := c.GetPostForm("inputURL")
 	if(!exist) {
 		c.HTML(http.StatusOK, "index.html", gin.H{
 			"title": "URL Shortner",
-			// "Content": "none",
-			// "error": "fail",
 		})
 	} else {
 		mgdb := c.Request.Context().Value("mgdb").(*mongo.Client)
 		rds := c.Request.Context().Value("rds").(*redis.Client)
-		newKey := generateURL(url)
+		newKey := generateURL(inputUrl)
 		// write to mongodb
 		record := URL{
-					Keys: newKey,
-					Origin: url,
+			Keys: newKey,
+			Origin: inputUrl,
 		}
 		collection := mgdb.Database("shortner").Collection("urlMapping")
+		// collection := mgdb.Database("testDb").Collection("testCollection")
 		collection.InsertOne(ctx, record)
 
 		//write to redis & set expire time to 1 week
-		err := rds.Set(ctx, newKey, url, 1*time.Minute).Err()
+		err := rds.Set(ctx, newKey, inputUrl, 1*time.Minute).Err()
 		if err != nil {
 			log.Println("Redis.Set failed", err)
 		}
 
-		// dbClient := c.Request.Context().Value("client").(*mongo.Client)
+		// renderResult(c)
 		host := "127.0.0.1:8080/"
 		c.HTML(http.StatusOK, "result.html", gin.H{
 			"title": "URL Shortner",
 			"short": host + newKey,
-			"origin": url,
+			"origin": inputUrl,
 		})
 	}
 }
@@ -175,6 +246,12 @@ func mgMiddleware(cl *mongo.Client) gin.HandlerFunc {
 func rdsMiddleware(cl *redis.Client) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Request = c.Request.WithContext(context.WithValue(c.Request.Context(), "rds", cl))
+		c.Next()
+	}
+}
+func lineMiddleware(cl *linebot.Client) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Request = c.Request.WithContext(context.WithValue(c.Request.Context(), "linebot", cl))
 		c.Next()
 	}
 }

@@ -3,7 +3,7 @@
 <head>
   <!-- <link rel="shortcut icon" href=""> -->
   <title>{{.title}}</title>
-  <link rel="stylesheet" href="../static/index.css">
+  <link rel="stylesheet" href="../asset/css/index.css">
   <script>
     function copy() {
       // Get the text field
@@ -21,24 +21,25 @@
   </script>
 </head>
 <body>
-  <div style="margin-bottom: 3em;">
-    <h1>{{.title}}</h1>
-    <form action="/new" method="POST">
-      <label for="originURL">Your URL</label>
-      <input type="url" name="inputURL" class="url-box" placeholder="your url" value="" required> <br>
-      <button type="submit" class="btnSubmit">send</button><br>
-    </form>
-  </div>
-
-  <div style="text-align:center; margin: auto; width: 40em;">
-    <div id="short-box">
-      <label> Short URL </label> <input type="text" value={{.short}} class="url-box"> <button onclick="copy()"><img src="../static/copy-symbol.png" alt="copy" width="15em" hight="15em">Copy</button>
-      
+  <div id="main-container">
+    <div style="margin-bottom: 3em;">
+      <h1>{{.title}}</h1>
+      <form action="/new" method="POST">
+        <label for="originURL">Paste Your URL</label>
+        <input type="url" name="inputURL" class="url-box" placeholder="your url" value="" required> <br>
+        <button type="submit" class="btnSubmit">send</button><br>
+      </form>
     </div>
-    <div>
-      Original URL: {{.origin}}
+
+    <div style="text-align:center; margin: auto; width: 40em;">
+      <div id="short-box">
+        <label> Short URL </label> <input type="text" value={{.short}} class="url-box" id="shortUrl" > <button onclick="copy()"><img src="../asset/img/copy-symbol.png" alt="copy" width="15em" hight="15em">Copy</button>
+        
+      </div>
+      <div>
+        Original URL: {{.origin}}
+      </div>
     </div>
   </div>
-
 </body>
 </html>

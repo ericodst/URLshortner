@@ -272,4 +272,3 @@ type URL struct {
 	Keys			string							`bson:"keys,omitempty"`
 	Origin		string							`bson:"origin,omitempty"`
 }
-

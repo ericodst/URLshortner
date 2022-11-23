@@ -1,0 +1,50 @@
+version: '3.9'
+
+services:
+  go-server:
+    container_name: go-server
+    env_file: .env
+    build: .
+    links: 
+      - mongodb
+      - redis
+    ports: 
+      - 3000:8080
+    depends_on:
+      - mongodb
+      - redis
+    networks:
+      - forShorten
+
+  redis:
+    container_name: redis
+    image: redis:7.0
+    ports: 
+      - 6379:6379
+    networks:
+      - forShorten
+    volumes: 
+      - 'forRedis:/data'
+
+  mongodb:
+    container_name: mongodb
+    image: bitnami/mongodb:5.0.13
+    ports: 
+      - 27017:27017
+    networks:
+      - forShorten
+    volumes: 
+      - 'forMongo:/bitnami/mongodb'
+    environment:
+      - ALLOW_EMPTY_PASSWORD=yes
+    restart: unless-stopped
+
+networks:
+  forShorten:
+    driver: bridge
+
+volumes:
+  forMongo:
+    external: true
+  forRedis:
+    external: true

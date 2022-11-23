@@ -19,7 +19,7 @@ import (
 	"github.com/go-redis/redis/v9"
 	"github.com/line/line-bot-sdk-go/v7/linebot"
 	"net/url"
-	"github.com/joho/godotenv"
+	// "github.com/joho/godotenv"
 )
 
 func NewClient(ctx context.Context) *redis.Client {
@@ -82,11 +82,11 @@ func main() {
 }
 
 func lineConnect() *linebot.Client {
-	err := godotenv.Load(".env")
-  if err != nil {
-		log.Println("godotenv error")
-    log.Fatal(err)
-  }
+	// err := godotenv.Load(".env")
+  // if err != nil {
+	// 	log.Println("godotenv error")
+  //   log.Fatal(err)
+  // }
 	channelSecret := os.Getenv("CHANNELSECRET")
 	channelToekn := os.Getenv("CHANNELTOKEN")
 	lineClient := &http.Client{}

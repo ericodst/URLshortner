@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
   "net/http"
   "github.com/gin-gonic/gin"
 	"crypto/sha256"
@@ -18,7 +19,7 @@ import (
 	"github.com/go-redis/redis/v9"
 	"github.com/line/line-bot-sdk-go/v7/linebot"
 	"net/url"
-	// "reflect"
+	"github.com/joho/godotenv"
 )
 
 func NewClient(ctx context.Context) *redis.Client {
@@ -53,8 +54,7 @@ func main() {
 
 	rds := NewClient(ctx)
 
-	// ping mongodb to check connection
-	if err := mgdb.Ping(context.TODO(), readpref.Primary()); err != nil {
+	if err := mgdb.Ping(ctx, readpref.Primary()); err != nil {
 		panic(err)
 	}
 
@@ -67,7 +67,7 @@ func main() {
 	server.Use(rdsMiddleware(rds))
 	server.Use(lineMiddleware(bot))
 
-	server.LoadHTMLGlob("template/*.html")
+	server.LoadHTMLGlob("template/*")
 	server.Static("/asset", "./asset")
 	server.GET("/", indexHandler)
 	server.POST("/new", getShortURL)
@@ -79,8 +79,13 @@ func main() {
 }
 
 func lineConnect() *linebot.Client {
-	channelSecret := "a8d3a14eba7f192523d01ba07fa1a915"
-	channelToekn := "hGli3a7tvQWCSksDQih89axwa7sxbl0sMrnk3lhmJgr833rrq/DPzS1NCb1sxDyy16uQEhZjJvxWhVK2e5nkTzKsQYXCdZU1VfbMP7KGwOiNZrtdI4Gze1+JjqtFroMOMizEDFyyHUSBnBy04PJP8QdB04t89/1O/w1cDnyilFU="
+	err := godotenv.Load(".env")
+  if err != nil {
+		log.Println("godotenv error")
+    log.Fatal(err)
+  }
+	channelSecret := os.Getenv("CHANNELSECRET")
+	channelToekn := os.Getenv("CHANNELTOKEN")
 	lineClient := &http.Client{}
 	bot, err := linebot.New(channelSecret, channelToekn, linebot.WithHTTPClient(lineClient))
 	if err != nil {
@@ -106,7 +111,6 @@ func botHandler(c *gin.Context){
 			case *linebot.TextMessage:
 				// check whether the input url is valid
 				_, err := url.ParseRequestURI(message.Text)
-				// log.Println(event.Message)
 				if err != nil {
 					_, err := bot.ReplyMessage(event.ReplyToken, linebot.NewTextMessage("It's not a valid url")).Do()
 					if err != nil {
@@ -132,7 +136,6 @@ func botHandler(c *gin.Context){
 					}
 					host := "127.0.0.1:8080/"
 					_, er := bot.ReplyMessage(event.ReplyToken, linebot.NewTextMessage(host+newKey)).Do()
-					// _, er := bot.ReplyMessage(event.ReplyToken, linebot.NewTextMessage(event.Message)).Do()
 					if er != nil {
 						log.Println(er)
 					}
@@ -165,7 +168,6 @@ func getShortURL(c *gin.Context) {
 			Origin: inputUrl,
 		}
 		collection := mgdb.Database("shortner").Collection("urlMapping")
-		// collection := mgdb.Database("testDb").Collection("testCollection")
 		collection.InsertOne(ctx, record)
 
 		//write to redis & set expire time to 1 week
@@ -174,7 +176,6 @@ func getShortURL(c *gin.Context) {
 			log.Println("Redis.Set failed", err)
 		}
 
-		// renderResult(c)
 		host := "127.0.0.1:8080/"
 		c.HTML(http.StatusOK, "result.html", gin.H{
 			"title": "URL Shortner",
@@ -192,12 +193,10 @@ func redirectHandler(c *gin.Context) {
 	ctx := context.TODO()
 	origin, err := rds.Get(ctx, key).Result()
 	if err == redis.Nil {
-			// fmt.Println("origin url does not exist")
 			notInReids = true
 	} else if err != nil {
 			fmt.Println("client.Get failed", err)
 	} else {
-			// fmt.Println("key2", val2)
 			c.Redirect(http.StatusMovedPermanently, origin)
 	}
 
@@ -273,4 +272,3 @@ type URL struct {
 	Keys			string							`bson:"keys,omitempty"`
 	Origin		string							`bson:"origin,omitempty"`
 }
-

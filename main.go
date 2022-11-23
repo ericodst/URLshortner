@@ -50,7 +50,7 @@ func main() {
 
 	// create mongodb server
 	// mgdb, err := mongo.Connect(context.TODO(), options.Client().ApplyURI("mongodb://127.0.0.1:27017"))
-	mgdb, err := mongo.Connect(context.TODO(), options.Client().ApplyURI("mongodb+srv://"+os.Getenv("USERNAME")":"+<os.Getenv("PASSWORD")>+"@cluster0.gzvesv9.mongodb.net/?retryWrites=true&w=majority"))
+	mgdb, err := mongo.Connect(context.TODO(), options.Client().ApplyURI("mongodb+srv://"+os.Getenv("USERNAME")+":"+<os.Getenv("PASSWORD")>+"@cluster0.gzvesv9.mongodb.net/?retryWrites=true&w=majority"))
 	if err != nil {
 		panic(err)
 	}

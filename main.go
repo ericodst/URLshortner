@@ -133,7 +133,7 @@ func botHandler(c *gin.Context){
 					collection.InsertOne(ctx, record)
 
 					//write to redis & set expire time to 1 week
-					err := rds.Set(ctx, newKey, message.Text, 1*time.Minute).Err()
+					err := rds.Set(ctx, newKey, message.Text, 7*time.Day).Err()
 					if err != nil {
 						log.Println("Redis.Set failed", err)
 					}

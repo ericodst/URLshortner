@@ -24,7 +24,8 @@ import (
 
 func NewClient(ctx context.Context) *redis.Client {
 	client := redis.NewClient(&redis.Options{
-			Addr:     "localhost:6379",
+			// Addr:     "localhost:6379",
+			Addr:     "redis://red-cdust5g2i3mkk8agf7rg:6379",
 			Password: "", // no password set
 			DB:       0,  // use default DB
 	})
@@ -42,12 +43,14 @@ func NewClient(ctx context.Context) *redis.Client {
 func main() {
 	// create gin server
   server := gin.Default()
-	server.SetTrustedProxies([]string{"127.0.0.1"})
+	// server.SetTrustedProxies([]string{"127.0.0.1"})
+	server.SetTrustedProxies([]string{"https://url-shorner-i75w.onrender.com"})
 
 	ctx := context.Background()
 
 	// create mongodb server
-	mgdb, err := mongo.Connect(context.TODO(), options.Client().ApplyURI("mongodb://127.0.0.1:27017"))
+	// mgdb, err := mongo.Connect(context.TODO(), options.Client().ApplyURI("mongodb://127.0.0.1:27017"))
+	mgdb, err := mongo.Connect(context.TODO(), options.Client().ApplyURI("mongodb+srv://"+os.Getenv("USERNAME")":"+<os.Getenv("PASSWORD")>+"@cluster0.gzvesv9.mongodb.net/?retryWrites=true&w=majority"))
 	if err != nil {
 		panic(err)
 	}
@@ -134,7 +137,7 @@ func botHandler(c *gin.Context){
 					if err != nil {
 						log.Println("Redis.Set failed", err)
 					}
-					host := "127.0.0.1:8080/"
+					host := "https://url-shorner-i75w.onrender.com/"
 					_, er := bot.ReplyMessage(event.ReplyToken, linebot.NewTextMessage(host+newKey)).Do()
 					if er != nil {
 						log.Println(er)
@@ -176,7 +179,7 @@ func getShortURL(c *gin.Context) {
 			log.Println("Redis.Set failed", err)
 		}
 
-		host := "127.0.0.1:8080/"
+		host := "https://url-shorner-i75w.onrender.com/"
 		c.HTML(http.StatusOK, "result.html", gin.H{
 			"title": "URL Shortner",
 			"short": host + newKey,

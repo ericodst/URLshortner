@@ -50,7 +50,9 @@ func main() {
 
 	// create mongodb server
 	// mgdb, err := mongo.Connect(context.TODO(), options.Client().ApplyURI("mongodb://127.0.0.1:27017"))
-	mgdb, err := mongo.Connect(context.TODO(), options.Client().ApplyURI("mongodb+srv://cluster0.mdoct1p.mongodb.net/?authSource=%24external&authMechanism=MONGODB-X509&retryWrites=true&w=majority"))
+	serverAPIOptions := options.ServerAPI(options.ServerAPIVersion1)
+	mgdb, err := options.Client().ApplyURI("mongodb+srv://"+url.QueryEscape(os.Getenv("USERNAME"))+":"+url.QueryEscape(os.Getenv("PASSWORD"))+"@cluster0.mdoct1p.mongodb.net/?retryWrites=true&w=majority").SetServerAPIOptions(serverAPIOptions)
+	// mgdb, err := mongo.Connect(context.TODO(), options.Client().ApplyURI("mongodb+srv://"+url.QueryEscape(os.Getenv("USERNAME"))+":"+url.QueryEscape(os.Getenv("PASSWORD"))+"@cluster0.mdoct1p.mongodb.net/?retryWrites=true&w=majority"))
 	if err != nil {
 		panic(err)
 	}

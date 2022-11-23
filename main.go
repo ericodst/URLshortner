@@ -25,7 +25,7 @@ import (
 func NewClient(ctx context.Context) *redis.Client {
 	client := redis.NewClient(&redis.Options{
 			// Addr:     "localhost:6379",
-			Addr:     "redis://red-cdust5g2i3mkk8agf7rg:6379",
+			Addr:     "red-cdust5g2i3mkk8agf7rg:6379",
 			Password: "", // no password set
 			DB:       0,  // use default DB
 	})

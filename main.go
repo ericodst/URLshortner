@@ -138,6 +138,7 @@ func botHandler(c *gin.Context){
 						log.Println("Redis.Set failed", err)
 					}
 					host := "https://url-shorner-i75w.onrender.com/"
+					// host := "127.0.0.1:8080/"
 					_, er := bot.ReplyMessage(event.ReplyToken, linebot.NewTextMessage(host+newKey)).Do()
 					if er != nil {
 						log.Println(er)
@@ -174,12 +175,13 @@ func getShortURL(c *gin.Context) {
 		collection.InsertOne(ctx, record)
 
 		//write to redis & set expire time to 1 week
-		err := rds.Set(ctx, newKey, inputUrl, 1*time.Minute).Err()
+		err := rds.Set(ctx, newKey, inputUrl, 168*time.Hour).Err()
 		if err != nil {
 			log.Println("Redis.Set failed", err)
 		}
 
 		host := "https://url-shorner-i75w.onrender.com/"
+		// host := "127.0.0.1:8080/"
 		c.HTML(http.StatusOK, "result.html", gin.H{
 			"title": "URL Shortner",
 			"short": host + newKey,
@@ -222,7 +224,7 @@ func redirectHandler(c *gin.Context) {
 				c.Redirect(http.StatusMovedPermanently, originURL)
 
 				//write to redis & set expire time to 1 week
-				err := rds.Set(ctx, key, originURL, 1*time.Minute).Err()
+				err := rds.Set(ctx, key, originURL, 168*time.Hour).Err()
 				if err != nil {
 					log.Println("Redis.Set failed", err)
 				}
